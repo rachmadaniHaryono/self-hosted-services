@@ -1,286 +1,33 @@
+---
 version: '3.5'
 services:
-  traefik:
-    image: "traefik:v2.5"
-    container_name: "traefik"
-    restart: unless-stopped
-    command:
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.websecure.address=:443"
-      - "--entrypoints.web.address=:80"
-      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
-      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
-      - "--certificatesresolvers.selfhostedservices.acme.tlschallenge=true"
-      - "--certificatesresolvers.selfhostedservices.acme.email=${LE_EMAIL_ADDRESS}"
-      - "--certificatesresolvers.selfhostedservices.acme.storage=/letsencrypt/acme.json"
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - "./letsencrypt:/letsencrypt"
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
-  
-    heimdall:
-      image: linuxserver/heimdall
-      container_name: heimdall
-      restart: unless-stopped
-      volumes:
-        - heimdall:/config
-      environment:
-        - PUID=1000
-        - PGID=1000
-        - TZ=${HEIMDALL_TZ}
-      restart: unless-stopped
-      healthcheck:
-        test: ["CMD", "wget" ,"--no-verbose", "--tries=1", "--spider", "http://localhost"]
-        interval: 1m
-        timeout: 3s
-      labels:
-        - "traefik.enable=true"
-        - "traefik.http.routers.dashboard.rule=Host(`${DASHBOARD_HOSTNAME}`)"
-        - "traefik.http.services.dashboard.loadbalancer.server.port=80"
-        - "traefik.http.routers.dashboard.entrypoints=websecure"
-        - "traefik.http.routers.dashboard.tls.certresolver=selfhostedservices"
-
-  wallabag:
-    image: wallabag/wallabag:latest
-    container_name: wallabag
-    restart: unless-stopped
-    environment:
-      - MYSQL_ROOT_PASSWORD=${WALLABAG_DB_ROOT_PASS}
-      - SYMFONY__ENV__DATABASE_DRIVER=pdo_mysql
-      - SYMFONY__ENV__DATABASE_HOST=wallabag_db
-      - SYMFONY__ENV__DATABASE_PORT=3306
-      - SYMFONY__ENV__DATABASE_NAME=wallabag
-      - SYMFONY__ENV__DATABASE_USER=wallabag
-      - SYMFONY__ENV__DATABASE_PASSWORD=${WALLABAG_DB_PASS}
-      - SYMFONY__ENV__DATABASE_CHARSET=utf8mb4
-      - SYMFONY__ENV__MAILER_HOST=127.0.0.1
-      - SYMFONY__ENV__MAILER_USER=~
-      - SYMFONY__ENV__MAILER_PASSWORD=~
-      - SYMFONY__ENV__FROM_EMAIL=wallabag@example.com
-      - SYMFONY__ENV__DOMAIN_NAME=${WALLABAG_URL}
-      - SYMFONY__ENV__SERVER_NAME="Seth's Wallabag Instance"
-    volumes:
-      - wallabag:/var/www/wallabag/web/assets/images
-    healthcheck:
-      test: ["CMD", "wget" ,"--no-verbose", "--tries=1", "--spider", "http://localhost"]
-      interval: 1m
-      timeout: 3s
-    depends_on:
-      - wallabag_db
-      - redis
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.wallabag.rule=Host(`${WALLABAG_HOSTNAME}`)"
-      - "traefik.http.routers.wallabag.entrypoints=websecure"
-      - "traefik.http.routers.wallabag.tls.certresolver=selfhostedservices"
-  
-  wallabag_db:
-    image: mariadb:latest
-    container_name: wallabag_db
-    restart: unless-stopped
-    environment:
-      - MYSQL_ROOT_PASSWORD=${WALLABAG_DB_ROOT_PASS}
-    volumes:
-      - wallabag_db:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
-      interval: 1s
-      timeout: 3s
-      retries: 30
-
-  monerod:
-    image: sethsimmons/simple-monerod:latest
-    restart: unless-stopped
-    container_name: monerod
-    volumes:
-      - bitmonero:/home/monero
-    ports:
-      - 18080:18080
-      - 18089:18089
-    command:
-      - "--rpc-restricted-bind-ip=0.0.0.0"
-      - "--rpc-restricted-bind-port=18089"
-      - "--public-node"
-      - "--no-igd"
-      - "--enable-dns-blocklist"
-      - "--prune-blockchain"
-
   nitter:
     volumes:
-        - ./nitter.conf:/src/nitter.conf
+      - ./nitter.conf:/src/nitter.conf
     image: zedeus/nitter:latest
     restart: unless-stopped
     container_name: nitter
+    ports:
+      - "8080:8080"
     healthcheck:
-      test: ["CMD", "wget" ,"--no-verbose", "--tries=1", "--spider", "http://localhost:8080"]
+      test: [
+        "CMD",
+        "wget",
+        "--no-verbose",
+        "--tries=1",
+        "--spider",
+        "http://localhost:8080"
+      ]
       interval: 1m
       timeout: 3s
     depends_on:
       - redis
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.nitter.rule=Host(`${NITTER_HOSTNAME}`)"
-      - "traefik.http.services.nitter.loadbalancer.server.port=8080"
-      - "traefik.http.routers.nitter.entrypoints=websecure"
-      - "traefik.http.routers.nitter.tls.certresolver=selfhostedservices"
-
-  teddit:
-    image: teddit/teddit:latest
-    container_name: teddit
-    restart: unless-stopped
-    environment:
-      - REDIS_HOST=redis
-      - DOMAIN=${TEDDIT_HOSTNAME}
-      - THEME=dark
-      - HTTPS_ENABLED=false
-      - REDIRECT_HTTP_TO_HTTPS=false
-      - REDIRECT_WWW=false
-    healthcheck:
-      test: ["CMD", "wget" ,"--no-verbose", "--tries=1", "--spider", "http://localhost:8080/about"]
-      interval: 1m
-      timeout: 3s
-    depends_on:
-      - redis
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.teddit.rule=Host(`${TEDDIT_HOSTNAME}`)"
-      - "traefik.http.services.teddit.loadbalancer.server.port=8080"
-      - "traefik.http.routers.teddit.entrypoints=websecure"
-      - "traefik.http.routers.teddit.tls.certresolver=selfhostedservices"
-
-  nextcloud:
-    image: nextcloud:apache
-    container_name: nextcloud
-    restart: unless-stopped
-    volumes:
-      - nextcloud:/var/www/html
-    environment:
-      - NEXTCLOUD_ADMIN_USER=${NEXTCLOUD_ADMIN_USER}
-      - NEXTCLOUD_ADMIN_PASSWORD=${NEXTCLOUD_ADMIN_PASSWORD}
-      - NEXTCLOUD_TRUSTED_DOMAINS=${NEXTCLOUD_HOSTNAME}
-      - TRUSTED_PROXIES=172.16.0.0/12
-      - POSTGRES_HOST=nextcloud_db
-      - POSTGRES_USER=nextcloud
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=nextcloud
-      - REDIS_HOST=redis
-    # TODO: Fix healthcheck, breaks Traefik due to trusted domains
-    # healthcheck:
-    #   test: ["CMD", "wget" ,"--no-verbose", "--tries=1", "--spider", "http://localhost"]
-    #   interval: 1m
-    #   timeout: 3s
-    depends_on:
-      - nextcloud_db
-      - redis
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.nextcloud.rule=Host(`${NEXTCLOUD_HOSTNAME}`)"
-      - "traefik.http.routers.nextcloud.middlewares=nextcloud,nextcloud_redirect"
-      - "traefik.http.routers.nextcloud.entrypoints=websecure"
-      - "traefik.http.middlewares.nextcloud.headers.stsSeconds=155520011"
-      - "traefik.http.middlewares.nextcloud.headers.stsIncludeSubdomains=true"
-      - "traefik.http.middlewares.nextcloud.headers.stsPreload=true"
-      - "traefik.http.middlewares.nextcloud.headers.contentTypeNosniff=true"
-      - "traefik.http.middlewares.nextcloud.headers.browserXSSFilter=true"
-      - "traefik.http.middlewares.nextcloud_redirect.redirectregex.permanent=true"
-      - "traefik.http.middlewares.nextcloud_redirect.redirectregex.regex=/.well-known/(card|cal)dav"
-      - "traefik.http.middlewares.nextcloud_redirect.redirectregex.replacement=/remote.php/dav/"
-      - "traefik.http.routers.nextcloud.tls.certresolver=selfhostedservices"
-
-  nextcloud_db:
-    image: postgres:alpine
-    container_name: nextcloud_db
-    restart: unless-stopped
-    volumes:
-      - nextcloud_db:/var/lib/postgresql/data
-    environment:
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=nextcloud
-      - POSTGRES_USER=nextcloud
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U nextcloud"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      
-  nextcloud_cron:
-    image: nextcloud:apache
-    restart: unless-stopped
-    volumes:
-      - nextcloud:/var/www/html
-    entrypoint: /cron.sh
-
-  privatebin:
-    image: privatebin/nginx-fpm-alpine:latest
-    container_name: privatebin
-    restart: unless-stopped
-    volumes:
-      - privatebin-data:/srv/data
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.privatebin.rule=Host(`${PRIVATEBIN_HOSTNAME}`)"
-      - "traefik.http.services.privatebin.loadbalancer.server.port=8080"
-      - "traefik.http.routers.privatebin.entrypoints=websecure"
-      - "traefik.http.routers.privatebin.tls.certresolver=selfhostedservices"
-
-  tor:
-    image: goldy/tor-hidden-service:latest
-    container_name: tor
-    restart: unless-stopped
-    links:
-      - monerod
-      - nitter
-      - teddit
-      - privatebin
-    environment:
-      MONEROD_TOR_SERVICE_HOSTS: 18089:monerod:18089
-      MONEROD_TOR_SERVICE_VERSION: '3'
-      NITTER_TOR_SERVICE_HOSTS: 80:nitter:8080
-      NITTER_TOR_SERVICE_VERSION: '3'
-      TEDDIT_TOR_SERVICE_HOSTS: 80:teddit:8080
-      TEDDIT_TOR_SERVICE_VERSION: '3'
-      PASTE_TOR_SERVICE_HOSTS: 80:privatebin:8080
-      PASTE_TOR_SERVICE_VERSION: '3'
-      
-      TOR_ENABLE_VANGUARDS: 'true'
-
-      VANGUARDS_EXTRA_OPTIONS: |
-        [Global]
-        enable_cbtverify = True
-        loglevel = INFO
-
-    volumes:
-      - tor-keys:/var/lib/tor/hidden_service/
-
   redis:
     image: redis:alpine
     container_name: redis
-    restart: unless-stopped
-    volumes:
-      - redis-data:/var/lib/redis
+    restart: always
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 1s
       timeout: 3s
       retries: 30
-
-  watchtower:
-    image: containrrr/watchtower:latest
-    container_name: watchtower
-    restart: unless-stopped
-    volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock"
-
-volumes:
-  bitmonero:
-  heimdall:
-  redis-data:
-  nextcloud:
-  nextcloud_db:
-  wallabag:
-  wallabag_db:
-  tor-keys:
-  privatebin-data:
