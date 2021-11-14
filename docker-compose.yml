@@ -21,10 +21,10 @@ services:
       interval: 1m
       timeout: 3s
     depends_on:
-      - redis
+      - nitter_redis
   redis:
     image: redis:alpine
-    container_name: redis
+    container_name: nitter_redis
     restart: always
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
