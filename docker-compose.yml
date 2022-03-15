@@ -6,19 +6,23 @@ services:
     image: zedeus/nitter:latest
     restart: unless-stopped
     container_name: nitter
+    ports:
+      # - "127.0.0.1:8080:8080" # Replace with "8080:8080" if you don't use a reverse proxy
+      - "8080:8080" # Replace with "8080:8080" if you don't use a reverse proxy
     healthcheck:
       test: ["CMD", "wget" ,"--no-verbose", "--tries=1", "--spider", "http://localhost:8080"]
       interval: 1m
       timeout: 3s
     depends_on:
-      - redis
+      - nitter-redis
 
-  redis:
-    image: redis:alpine
-    container_name: redis
+  nitter-redis:
+    image: redis:6-alpine
+    container_name: nitter-redis
+    command: redis-server --save 60 1 --loglevel warning
     restart: unless-stopped
     volumes:
-      - redis-data:/var/lib/redis
+      - nitter-redis:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 1s
@@ -50,5 +54,4 @@ services:
       - "/var/run/docker.sock:/var/run/docker.sock"
 
 volumes:
-  redis-data:
-  data-redis:
+  nitter-redis:
