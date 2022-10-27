@@ -7,15 +7,13 @@ services:
     restart: unless-stopped
     container_name: nitter
     ports:
-      # - "127.0.0.1:8080:8080" # Replace with "8080:8080" if you don't use a reverse proxy
-      - "8080:8080" # Replace with "8080:8080" if you don't use a reverse proxy
+      - "8080:8080"
     healthcheck:
       test: ["CMD", "wget" ,"--no-verbose", "--tries=1", "--spider", "http://localhost:8080"]
       interval: 1m
       timeout: 3s
     depends_on:
       - nitter-redis
-
   nitter-redis:
     image: redis:6-alpine
     container_name: nitter-redis
@@ -28,13 +26,6 @@ services:
       interval: 1s
       timeout: 3s
       retries: 30
-
-  watchtower:
-    image: containrrr/watchtower:latest
-    container_name: watchtower
-    restart: unless-stopped
-    volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock"
   jackett:
     image: lscr.io/linuxserver/jackett
     container_name: jackett
