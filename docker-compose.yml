@@ -1,4 +1,4 @@
-# https://github.com/iv-org/invidious/blob/master/docker-compose.yml
+# https://docs.invidious.io/installation/#docker-compose-method-production
 # https://github.com/zedeus/nitter/blob/master/docker-compose.yml
 # https://yacy.net/download_installation/#docker
 version: '3.7'
@@ -64,7 +64,7 @@ services:
         # external_port:
         # domain:
         # https_only: false
-        # statistics_enabled: false
+        statistics_enabled: true
     healthcheck:
       test: wget -nv --tries=1 --spider http://127.0.0.1:3000/api/v1/comments/jNQXAC9IVRw || exit 1
       interval: 30s
@@ -73,18 +73,18 @@ services:
     depends_on:
     - invidious-db
   invidious-db:
-    image: docker.io/library/postgres:13
+    image: docker.io/library/postgres:14
     restart: unless-stopped
     volumes:
     - postgresdata:/var/lib/postgresql/data
-    - ./config/sql:/config/sql
-    - ./docker/init-invidious-db.sh:/docker-entrypoint-initdb.d/init-invidious-db.sh
+    - ./invidious/config/sql:/config/sql
+    - ./invidious/docker/init-invidious-db.sh:/docker-entrypoint-initdb.d/init-invidious-db.sh
     environment:
       POSTGRES_DB: invidious
       POSTGRES_USER: kemal
       POSTGRES_PASSWORD: kemal
     healthcheck:
-      test: [CMD-SHELL, pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
   tachidesk:
     image: ghcr.io/suwayomi/tachidesk
     restart: unless-stopped
